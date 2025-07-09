@@ -2,9 +2,9 @@
 
 This project provides a benchmarking and testing environment for language model within **Stardew Valley** using the `StardewModdingAPI` interface. It supports single-task, multi-task (sequential or parallel), and customizable observation/action spaces and tasks for agent evaluation.
 
-Official Website: https://stardojo2025.github.io/stardojo
+Official Website: https://weihaotan.github.io/StarDojo
 
-Docs: https://stardojo2025.github.io/stardojo/docs
+Docs: https://weihaotan.github.io/StarDojo/docs
 
 ---
 
