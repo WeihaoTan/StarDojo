@@ -21,9 +21,9 @@ import backoff
 import tiktoken
 import numpy as np
 import cv2
-from google import genai
-from google.genai.errors import APIError, ClientError, ServerError, UnknownFunctionCallArgumentError, UnsupportedFunctionError, FunctionInvocationError
-from google.genai import types
+import google.generativeai as genai
+from google.api_core.exceptions import ClientError, ServerError
+from google.generativeai import types
 
 from stardojo import constants
 from stardojo.provider.base import LLMProvider, EmbeddingProvider
@@ -47,7 +47,6 @@ PROVIDER_SETTING_COMP_MODEL = "comp_model"
 class GeminiProvider(LLMProvider):
     """A class that wraps a given model"""
 
-    client: genai.Client = None
     llm_model: str = ""
     embedding_model: str = ""
 
@@ -91,7 +90,7 @@ class GeminiProvider(LLMProvider):
 
         key_var_name = conf_dict[PROVIDER_SETTING_KEY_VAR]
         key = os.getenv(key_var_name)
-        self.client = genai.Client(api_key=key)
+        genai.configure(api_key=key)
 
         self.llm_model = conf_dict[PROVIDER_SETTING_COMP_MODEL]
 
@@ -139,7 +138,7 @@ class GeminiProvider(LLMProvider):
         @backoff.on_exception(
             backoff.constant,
             (
-                APIError, ClientError, ServerError, UnknownFunctionCallArgumentError, UnsupportedFunctionError, FunctionInvocationError
+                ClientError, ServerError
             ),
             max_tries=self.retries,
             interval=10,
@@ -161,13 +160,13 @@ class GeminiProvider(LLMProvider):
                     messages.pop(index)
                     break
 
-            logger.write("Requesting completion..., System content: " + system_content)
+            logger.write("Requesting completion..., System content: " + str(system_content))
 
             """Send a request to the Gemini API."""
-            response = self.client.models.generate_content(
-                model=model,
+            model_instance = genai.GenerativeModel(model_name=model)
+            response = model_instance.generate_content(
                 contents=messages,
-                config=types.GenerateContentConfig(
+                generation_config=types.GenerationConfig(
                     max_output_tokens=max_tokens,
                     temperature=temperature,
                     seed=seed,
@@ -219,7 +218,7 @@ class GeminiProvider(LLMProvider):
         @backoff.on_exception(
             backoff.constant,
             (
-                    APIError, ClientError, ServerError, UnknownFunctionCallArgumentError, UnsupportedFunctionError, FunctionInvocationError
+                    ClientError, ServerError
             ),
             max_tries=self.retries,
             interval=10,
@@ -241,10 +240,10 @@ class GeminiProvider(LLMProvider):
                     break
 
             """Send a request to the Gemini API."""
-            response = self.client.models.generate_content(
-                model=model,
+            model_instance = genai.GenerativeModel(model_name=model)
+            response = model_instance.generate_content(
                 contents=messages,
-                config=types.GenerateContentConfig(
+                generation_config=types.GenerationConfig(
                     max_output_tokens=max_tokens,
                     temperature=temperature,
                     seed=seed,
@@ -255,11 +254,11 @@ class GeminiProvider(LLMProvider):
                 logger.error("Failed to get a response from OpenAI. Try again.")
                 logger.double_check()
 
-            message = response.content[0].text
+            message = response.candidates[0].content.parts[0].text
 
             info = {
-                "input_tokens": response.usage.input_tokens,
-                "output_tokens": response.usage.output_tokens,
+                "input_tokens": response.usage_metadata.prompt_token_count,
+                "output_tokens": response.usage_metadata.candidates_token_count,
             }
 
             logger.write(f'Response received from {model}.')
