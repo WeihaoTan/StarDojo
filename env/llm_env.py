@@ -1,7 +1,7 @@
 import os.path
 
 from stardew_env import *
-from agent.stardojo.stardojo_react_agent import *
+from agent.stardojo.stardojo_react_agent import PipelineRunner, config, atexit, exit_cleanup
 from tasks.base import *
 import importlib.util
 import uuid
@@ -72,8 +72,10 @@ class StarDojoLLM(StarDojo):
             image_obs: bool = False,
             needs_pausing: bool = True,
             output_video: bool = False,
+            needs_shared_memory: bool = False,
+            max_image_storage: int = 2
     ) -> None:
-        super().__init__(port, save_index, new_game, is_RL, image_save_path, output_video=output_video)
+        super().__init__(port, save_index, new_game, is_RL, image_save_path, output_video=output_video, max_image_storage=max_image_storage)
         self.agent = agent
         self.task = task
         self.needs_pausing = needs_pausing
@@ -85,7 +87,8 @@ class StarDojoLLM(StarDojo):
         if task is not None:
             self.action_proxy.wait_for_server()
             task.init_task(self.task_proxy)
-            self.action_proxy.set_mmap_reader()
+            if needs_shared_memory:
+                self.action_proxy.set_mmap_reader()
             self.agent.reconfigure_root_logger(port=None, task=None)
 
     def get_last_part(self, s):
@@ -310,7 +313,9 @@ def run_stardojo(
     checkpoint_interval: int = 5,
     env_config_path: str = "./conf/env_config_stardew.json",
     llm_config_path: str = "./conf/openai_config.json",
-    embed_config_path: str = "./conf/openai_config.json"
+    embed_config_path: str = "./conf/openai_config.json",
+    needs_shared_memory: bool = False,
+    max_image_storage: int = 2
 ):
 
     logging.basicConfig(
@@ -352,7 +357,9 @@ def run_stardojo(
         needs_pausing=True,
         image_obs=True,
         task=task,
-        output_video=output_video
+        output_video=output_video,
+        needs_shared_memory=needs_shared_memory,
+        max_image_storage=max_image_storage
     )
 
     time.sleep(1)
@@ -399,12 +406,13 @@ if __name__ == "__main__":
     parser.add_argument("--task_id", type=int, default=0, help="ID of the task to load")
     parser.add_argument("--checkpoint_interval", type=int, default=5, help="Interval of saving checkpoints")
     parser.add_argument("--env_config_path", type=str, default="./conf/env_config_stardew.json", help="Path to environment config")
-    parser.add_argument("--llm_config_path", type=str, default="./conf/openai_config.json", help="Path to LLM config")
+    parser.add_argument("--llm_config_path", type=str, default="./conf/opensrc_config.json", help="Path to LLM config")
     parser.add_argument("--embed_config_path", type=str, default="./conf/openai_config.json", help="Path to embedding config")
-
+    parser.add_argument("--needs_shared_memory", default=False, help="Whether to use shared memory")
+    parser.add_argument("--max_image_storage", type=int, default=2, help="Maximum number of images to store")
     args = parser.parse_args()
 
-    run_stardojo(
+    run_stardojo( 
         port=args.port,
         save_index=args.save_index,
         new_game=args.new_game,
@@ -415,5 +423,7 @@ if __name__ == "__main__":
         checkpoint_interval=args.checkpoint_interval,
         env_config_path=args.env_config_path,
         llm_config_path=args.llm_config_path,
-        embed_config_path=args.embed_config_path
+        embed_config_path=args.embed_config_path,
+        needs_shared_memory=args.needs_shared_memory,
+        max_image_storage=args.max_image_storage
     )
